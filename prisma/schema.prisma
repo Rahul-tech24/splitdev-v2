@@ -1,0 +1,58 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  password      String
+  
+  // Relationships
+  groups        Group[]   @relation("GroupMembers")
+  paidExpenses  Expense[] @relation("PaidExpenses")
+  splitExpenses Expense[] @relation("SplitExpenses")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Group {
+  id          String    @id @default(uuid())
+  name        String
+  
+  // Relationships
+  members     User[]    @relation("GroupMembers")
+  expenses    Expense[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Expense {
+  id          String    @id @default(uuid())
+  description String
+  amount      Float
+  
+  // Foreign Keys & Relationships
+  groupId     String
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  paidById    String
+  paidBy      User      @relation("PaidExpenses", fields: [paidById], references: [id])
+  
+  splitAmong  User[]    @relation("SplitExpenses")
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
