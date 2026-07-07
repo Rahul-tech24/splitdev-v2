@@ -1,44 +1,30 @@
 'use server'; 
-import prisma from '../lib/prisma';
-import bcrypt from 'bcryptjs';
 
+import prisma from '../lib/prisma'; 
+import bcrypt from 'bcryptjs';
+import { createSession } from '../lib/session'; // NEW: Import the session engine
+
+// --- REGISTER ACTION ---
 export async function registerUser(name: string, email: string, password: string) {
   try {
-    // 1. Validation
-    if (!name || !email || !password) {
-      return { error: 'Please provide all fields' };
-    }
+    if (!name || !email || !password) return { error: 'Please provide all fields' };
 
-    // 2. The O(1) Check (Preventing CPU overload)
-    const userExists = await prisma.user.findUnique({
-      where: { email },
-    });
+    const userExists = await prisma.user.findUnique({ where: { email } });
+    if (userExists) return { error: 'User already exists' };
 
-    if (userExists) {
-      return { error: 'User already exists' };
-    }
-
-    // 3. Cryptography
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 4. The Database Mutation
     const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
+      data: { name, email, password: hashedPassword },
     });
 
-    // 5. The Response
+    // NEW: Lock the session into the browser cookie!
+    await createSession(user.id, user.name); 
+
     return {
       success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      }
+      user: { id: user.id, name: user.name, email: user.email }
     };
   } catch (error) {
     console.error('Registration Error:', error);
@@ -46,36 +32,23 @@ export async function registerUser(name: string, email: string, password: string
   }
 }
 
+// --- LOGIN ACTION ---
 export async function loginUser(email: string, password: string) {
   try {
-    if (!email || !password) {
-      return { error: 'Please provide email and password' };
-    }
+    if (!email || !password) return { error: 'Please provide email and password' };
 
-    // 1. Find the user in PostgreSQL
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return { error: 'Invalid credentials' };
 
-    if (!user) {
-      return { error: 'Invalid credentials' }; // We don't say "Email not found" for security
-    }
-
-    // 2. Verify the cryptography
     const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return { error: 'Invalid credentials' };
 
-    if (!isMatch) {
-      return { error: 'Invalid credentials' };
-    }
+    // NEW: Lock the session into the browser cookie!
+    await createSession(user.id, user.name);
 
-    // 3. Success! Return the user data (NEVER return the password)
     return {
       success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      }
+      user: { id: user.id, name: user.name, email: user.email }
     };
   } catch (error) {
     console.error('Login Error:', error);
