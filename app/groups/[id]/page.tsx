@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import prisma from '../../../lib/prisma';
 import Link from 'next/link';
 import InviteMemberModal from '../../../components/InviteMemberModal';
+import AddExpenseModal from '../../../components/AddExpenseModal';
+import { calculateSettlements } from '../../../lib/settlement';
 
 // Next.js 15+ requires params to be treated as a Promise
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -47,6 +49,10 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   // Calculate total group spend
   const totalSpend = group.expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
+  // 5. RUN THE GREEDY SETTLEMENT ALGORITHM
+  // We feed our raw members and expenses into your JS Data Structures engine
+  const settlements = calculateSettlements(group.members, group.expenses);
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       {/* Top Navigation / Header */}
@@ -88,12 +94,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                 </p>
               </div>
               
-              {/* This button will trigger our Add Expense UI later */}
-              <button 
-                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-lg shadow-blue-500/20 flex items-center space-x-2"
-              >
-                <span>+ Add Expense</span>
-              </button>
+              <AddExpenseModal groupId={group.id} />
             </div>
 
             {/* Expenses List */}
@@ -142,7 +143,6 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-white">Group Members</h3>
-                {/* HERE IS OUR NEW INTERACTIVE ISLAND */}
                 <InviteMemberModal groupId={group.id} />
               </div>
 
@@ -168,20 +168,48 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
               </div>
             </div>
 
-            {/* The Greedy Settlement Engine Box (Placeholder for Step 5) */}
-            <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-xl p-6">
-              <h3 className="font-semibold text-white flex items-center space-x-2">
-                <span>⚡ Settlement Engine</span>
-              </h3>
-              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
-                Our Greedy Algorithm will automatically calculate the minimum number of transactions required to settle all debts in this group.
+            {/* THE GREEDY SETTLEMENT ENGINE UI */}
+            <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/30 rounded-xl p-6 shadow-xl shadow-blue-950/20">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-white flex items-center space-x-2 text-sm tracking-wide">
+                  <span>⚡ SETTLEMENT ENGINE</span>
+                </h3>
+                <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded font-mono">
+                  Greedy Algo
+                </span>
+              </div>
+
+              <p className="text-xs text-gray-300 mb-4 leading-relaxed">
+                Calculated in real-time. Follow these exact transactions to settle all group debts with zero wasted bank transfers.
               </p>
-              <button 
-                disabled
-                className="mt-4 w-full py-2 bg-blue-600/30 border border-blue-500/30 text-blue-300 text-xs font-medium rounded-lg cursor-not-allowed opacity-75"
-              >
-                No Debts to Settle Yet
-              </button>
+
+              {settlements.length === 0 ? (
+                <div className="p-4 bg-gray-900/60 border border-gray-800/80 rounded-lg text-center">
+                  <p className="text-xs font-medium text-emerald-400 flex items-center justify-center space-x-1.5">
+                    <span>✓</span>
+                    <span>All balances are settled!</span>
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Nobody owes anyone money.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {settlements.map((tx, index) => (
+                    <div 
+                      key={index} 
+                      className="p-3 bg-gray-900/80 border border-blue-500/20 rounded-lg flex items-center justify-between text-xs shadow-inner"
+                    >
+                      <div className="flex items-center space-x-2 overflow-hidden">
+                        <span className="font-bold text-red-400 truncate max-w-[80px]">{tx.from}</span>
+                        <span className="text-gray-500 text-[10px]">&rarr; pays &rarr;</span>
+                        <span className="font-bold text-emerald-400 truncate max-w-[80px]">{tx.to}</span>
+                      </div>
+                      <span className="font-mono font-bold text-white bg-blue-600/20 border border-blue-500/30 px-2 py-1 rounded">
+                        ${tx.amount.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>

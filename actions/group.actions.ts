@@ -110,3 +110,61 @@ export async function inviteMember(groupId: string, targetEmail: string) {
     return { success: false, error: 'An unexpected error occurred while adding the member.' };
   }
 }
+
+export async function createExpense(groupId: string, description: string, amount: number) {
+  try {
+    // GATE 1: Is the caller signed in?
+    const session = await verifySession();
+    if (!session) {
+      return { success: false, error: 'You must be logged in to add an expense.' };
+    }
+
+    // GATE 2: Is the data clean and legit? (Check in memory before hitting DB!)
+    const cleanDescription = description.trim();
+    if (!cleanDescription) {
+      return { success: false, error: 'Please enter a description for the expense.' };
+    }
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return { success: false, error: 'Please enter a valid amount greater than $0.' };
+    }
+
+    // GATE 3: Does the group exist AND is the caller a member?
+    const group = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        members: {
+          some: {
+            id: session.userId,
+          },
+        },
+      },
+    });
+
+    if (!group) {
+      return { success: false, error: 'Group not found or you do not have permission to add expenses to it.' };
+    }
+
+    // ALL GATES CLEARED: Plug in the dual wires and create the receipt!
+    await prisma.expense.create({
+      data: {
+        description: cleanDescription,
+        amount: Number(amount.toFixed(2)), // Enforce 2 decimal places max
+        group: {
+          connect: { id: groupId }, // Wire 1: Connect to the Group
+        },
+        paidBy: {
+          connect: { id: session.userId }, // Wire 2: Connect to the User who paid
+        },
+      },
+    });
+
+    // Ripped up the old cache photograph so the new receipt instantly appears on screen
+    revalidatePath(`/groups/${groupId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create expense:', error);
+    return { success: false, error: 'An unexpected error occurred while saving the expense.' };
+  }
+}
