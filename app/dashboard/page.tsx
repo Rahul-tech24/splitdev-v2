@@ -1,75 +1,119 @@
-import { verifySession } from '@/lib/session';
+import { verifySession } from '../../lib/session';
 import { redirect } from 'next/navigation';
-
- import Link from 'next/link';
-
-import { Wallet, LogOut, Plus, Users } from 'lucide-react';
-
+import prisma from '../../lib/prisma';
+import Link from 'next/link';
 
 export default async function DashboardPage() {
-    const session = await verifySession();
+  // 1. Verify Authentication
+  const session = await verifySession();
+  if (!session) {
+    redirect('/login');
+  }
 
-    if (!session) {
-        redirect('/login');
-    }
-
-  // Mock data for tonight. Tomorrow this will be: 
-  // const groups = await prisma.group.findMany({ where: { members: { some: { id: userId } } } })
-  const mockGroups = [
-    { id: '1', name: 'Goa Trip 2026', memberCount: 4 },
-    { id: '2', name: 'Apartment 4B', memberCount: 2 },
-  ];
+  // 2. Query PostgreSQL directly for this user's groups
+  const groups = await prisma.group.findMany({
+    where: {
+      members: {
+        some: {
+          id: session.userId,
+        },
+      },
+    },
+    include: {
+      members: true, // Fetch members so we can display the member count
+    },
+  });
+  console.log('Fetched Groups:', groups);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-
-      {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-          <Wallet size={24} /> <span>SplitDev</span>
-          <h1>Welcome back, {session.name}</h1>
-        </div>
-        {/* We will wire up the real logout action tomorrow */}
-        <Link href="/login" className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition">
-          <LogOut size={18} /> <span className="text-sm font-medium">Log Out</span>
-        </Link>
-      </nav>
-
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Welcome back, {session.name}</h1>
-            <p className="text-slate-500 mt-1">Manage your shared expenses and settlements.</p>
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Top Navigation Bar */}
+      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-xl font-bold tracking-tight text-white">
+              Split<span className="text-blue-500">Dev</span>
+            </span>
+            <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-medium">
+              Dashboard
+            </span>
           </div>
-          <button className="hidden sm:flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition shadow-sm">
-            <Plus size={18} /> Create Group
-          </button>
+
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-400">
+              Welcome, <strong className="text-white font-medium">{session.name}</strong>
+            </span>
+            <Link
+              href="/create-group"
+              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-blue-500/20 flex items-center space-x-1"
+            >
+              <span>+ Create Group</span>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Arena */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Your Groups</h1>
+            <p className="text-sm text-gray-400 mt-1">
+              Select a group to manage expenses or settle debts.
+            </p>
+          </div>
         </div>
 
-        {/* Group Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockGroups.map((group) => (
-            <Link key={group.id} href={`/groups/${group.id}`} className="group block bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition">
-                  <Users size={24} />
-                </div>
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-1">{group.name}</h2>
-              <div className="flex items-center text-sm text-slate-500 gap-4 mt-4">
-                <span className="flex items-center gap-1"><Users size={14}/> {group.memberCount} Members</span>
-              </div>
-            </Link>
-          ))}
-          
-          <button className="flex flex-col items-center justify-center bg-slate-100/50 border-2 border-dashed border-slate-300 rounded-2xl p-6 hover:bg-slate-100 hover:border-indigo-400 transition min-h-[200px]">
-            <div className="p-3 bg-white shadow-sm rounded-full text-slate-400 mb-3">
-              <Plus size={24} />
+        {/* Dynamic Group Grid */}
+        {groups.length === 0 ? (
+          /* Empty State */
+          <div className="bg-gray-900/40 border border-dashed border-gray-800 rounded-xl p-12 text-center max-w-xl mx-auto mt-12">
+            <div className="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20 text-xl font-bold">
+              group
             </div>
-            <span className="font-semibold text-slate-600">Create New Group</span>
-          </button>
-        </div>
+            <h3 className="text-lg font-medium text-white">No groups created yet</h3>
+            <p className="text-gray-400 text-sm mt-1 mb-6">
+              You haven't joined or created any expense groups. Get started by creating your first ledger.
+            </p>
+            <Link
+              href="/create-group"
+              className="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-sm transition-all shadow-lg shadow-blue-500/20"
+            >
+              + Create Your First Group
+            </Link>
+          </div>
+        ) : (
+          /* Group Cards Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {groups.map((group) => (
+              <Link
+                key={group.id}
+                href={`/groups/${group.id}`}
+                className="block bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-gray-700 hover:bg-gray-800/50 transition-all group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="w-12 h-12 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-lg group-hover:scale-105 transition-transform">
+                    {group.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-xs bg-gray-800 text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 font-medium">
+                    {group.members.length} {group.members.length === 1 ? 'Member' : 'Members'}
+                  </span>
+                </div>
+
+                <h3 className="mt-4 text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
+                  {group.name}
+                </h3>
+
+                <div className="mt-6 pt-4 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-500">
+                  <span>Click to open ledger</span>
+                  <span className="text-blue-400 font-medium group-hover:translate-x-1 transition-transform inline-block">
+                    View Arena &rarr;
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
