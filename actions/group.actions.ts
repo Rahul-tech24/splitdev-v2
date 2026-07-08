@@ -39,3 +39,74 @@ export async function createGroup(name: string) {
     return { error: 'Failed to create group.' };
   }
 }
+
+export async function inviteMember(groupId: string, targetEmail: string) {
+  try {
+    // GATE 1: Is the caller signed in?
+    const session = await verifySession();
+    if (!session) {
+      return { success: false, error: 'You must be logged in to invite members.' };
+    }
+
+    // Clean up the input email (lowercase and strip whitespace)
+    const cleanEmail = targetEmail.trim().toLowerCase();
+
+    // GATE 2: Is the caller actually a member of this group?
+    // We also include the current members list here so we can use it in Gate 4!
+    const group = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        members: {
+          some: {
+            id: session.userId,
+          },
+        },
+      },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!group) {
+      return { success: false, error: 'Group not found or you do not have permission to invite users.' };
+    }
+
+    // GATE 3: Does the friend exist in our database?
+    const targetUser = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+
+    if (!targetUser) {
+      return { 
+        success: false, 
+        error: `No SplitDev user found with email "${cleanEmail}". Ask them to register first!` 
+      };
+    }
+
+    // GATE 4: Is the friend ALREADY in the group?
+    const isAlreadyMember = group.members.some((member) => member.id === targetUser.id);
+    if (isAlreadyMember) {
+      return { success: false, error: `${targetUser.name} is already a member of this group.` };
+    }
+
+    // ALL GATES CLEARED: Plug in the wire!
+    await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        members: {
+          connect: {
+            id: targetUser.id,
+          },
+        },
+      },
+    });
+
+    // Destroy the old photograph of the Group Arena so the new member appears instantly
+    revalidatePath(`/groups/${groupId}`);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to invite member:', error);
+    return { success: false, error: 'An unexpected error occurred while adding the member.' };
+  }
+}
