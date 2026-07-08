@@ -1,7 +1,7 @@
-'use client'; // The Network Boundary! This tells Next.js to ship this JS to the browser.
+'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // Use next/navigation, NOT next/router
+import { useRouter } from 'next/navigation';
 import { loginUser } from '../actions/auth.actions';
 
 export default function LoginForm() {
@@ -18,13 +18,11 @@ export default function LoginForm() {
     setError('');
 
     try {
-      // Calling the backend directly from the frontend
       const result = await loginUser(email, password);
 
       if (result.error) {
         setError(result.error);
       } else if (result.success) {
-        // Successfully logged in. Send them to the dashboard.
         router.push('/dashboard'); 
       }
     } catch (err) {
@@ -37,31 +35,31 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-medium">
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium">
           {error}
         </div>
       )}
       
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+        <label className="block text-xs font-medium text-gray-300 mb-1.5">Email Address</label>
         <input 
           type="email" 
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required 
-          className="w-full border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+          className="w-full px-3.5 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-white text-sm placeholder-gray-500 transition-all" 
           placeholder="stayhard@example.com" 
         />
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+        <label className="block text-xs font-medium text-gray-300 mb-1.5">Password</label>
         <input 
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required 
-          className="w-full border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+          className="w-full px-3.5 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-white text-sm placeholder-gray-500 transition-all" 
           placeholder="••••••••" 
         />
       </div>
@@ -69,9 +67,19 @@ export default function LoginForm() {
       <button 
         type="submit" 
         disabled={isLoading}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 px-4 rounded-lg transition"
+        className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white font-semibold py-3 px-4 rounded-lg transition-all shadow-lg shadow-blue-500/20 text-sm disabled:cursor-not-allowed flex items-center justify-center space-x-2"
       >
-        {isLoading ? 'Forging Account...' : 'Create Account'}
+        {isLoading ? (
+          <>
+            <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Signing In...</span>
+          </>
+        ) : (
+          <span>Sign In</span>
+        )}
       </button>
     </form>
   );
