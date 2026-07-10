@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { inviteMember } from '../actions/group.actions';
+import toast from 'react-hot-toast';
 
 export default function InviteMemberModal({ groupId }: { groupId: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +21,7 @@ export default function InviteMemberModal({ groupId }: { groupId: string }) {
       const result = await inviteMember(groupId, email);
 
       if (!result.success) {
+        toast.error(result.error || 'Failed to invite user.');
         setError(result.error || 'Failed to invite user.');
         setIsLoading(false);
       } else {

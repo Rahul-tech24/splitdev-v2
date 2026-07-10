@@ -3,31 +3,33 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { registerUser } from '../actions/auth.actions';
+ import toast from 'react-hot-toast';
 
 export default function RegisterForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
   
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    
 
     try {
       const result = await registerUser(name, email, password);
 
       if (result.error) {
-        setError(result.error);
+        toast.error(result.error);
       } else if (result.success) {
+         toast.success('Account forged! You can now log in.');
         router.push('/login'); 
       }
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -35,11 +37,6 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium">
-          {error}
-        </div>
-      )}
       
       <div>
         <label className="block text-xs font-medium text-gray-300 mb-1.5">Full Name</label>
