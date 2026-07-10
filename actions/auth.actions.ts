@@ -55,3 +55,14 @@ export async function loginUser(email: string, password: string) {
     return { error: 'Something went wrong during login' };
   }
 }
+
+
+export async function logoutUser() {
+  const { deleteSession } = await import('../lib/session');
+  await deleteSession();
+  
+  // We don't return anything, we just forcefully redirect the browser
+  const { redirect } = await import('next/navigation');
+  redirect('/');
+}
+

@@ -2,6 +2,9 @@ import { verifySession } from '../../lib/session';
 import { redirect } from 'next/navigation';
 import prisma from '../../lib/prisma';
 import Link from 'next/link';
+import { Wallet } from 'lucide-react';
+import UserAvatarMenu from '../../components/UserAvatarMenu';
+
 
 export default async function DashboardPage() {
   // 1. Verify Authentication
@@ -27,28 +30,27 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      {/* Top Navigation Bar */}
+      
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <span className="text-xl font-bold tracking-tight text-white">
-              Split<span className="text-blue-500">Dev</span>
-            </span>
-            <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-medium">
-              Dashboard
-            </span>
-          </div>
+
+           <nav className="bg-gray-900/50 border-b border-gray-800 px-6 py-4 flex justify-between items-center backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-2 text-blue-500 font-bold text-xl tracking-tight">
+          <Wallet size={24} /> <span className="text-white">Split<span className="text-blue-500">Dev</span></span>
+        </div>
+        
+       
+      </nav>
 
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-400">
-              Welcome, <strong className="text-white font-medium">{session.name}</strong>
-            </span>
+            
             <Link
               href="/create-group"
               className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-blue-500/20 flex items-center space-x-1"
             >
               <span>+ Create Group</span>
             </Link>
+             <UserAvatarMenu userName={session.name} />
           </div>
         </div>
       </header>
