@@ -48,7 +48,7 @@ export async function createExpense(groupId: string, description: string, amount
     // GATE 2: ZOD VALIDATION
     const validation = ExpenseSchema.safeParse({ groupId, description, amount, shares });
     if (!validation.success) {
-      return { success: false, error: validation.error.errors[0].message };
+      return { success: false, error: validation.error.issues[0].message };
     }
 
     const safeData = validation.data;
