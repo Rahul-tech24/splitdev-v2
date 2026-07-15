@@ -21,7 +21,8 @@ model User {
   // Relationships
   groups        Group[]   @relation("GroupMembers")
   paidExpenses  Expense[] @relation("PaidExpenses")
-  splitExpenses Expense[] @relation("SplitExpenses")
+  // splitExpenses Expense[] @relation("SplitExpenses")
+  expenseShares ExpenseShare[] 
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -51,8 +52,23 @@ model Expense {
   paidById    String
   paidBy      User      @relation("PaidExpenses", fields: [paidById], references: [id])
   
-  splitAmong  User[]    @relation("SplitExpenses")
+  // splitAmong  User[]    @relation("SplitExpenses")
+  shares ExpenseShare[]
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model ExpenseShare {
+id          String    @id @default(uuid())
+amountOwed  Float     // The exact math: how much this specific user owes
+
+userId      String
+user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+expenseId   String
+expense     Expense   @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+// This prevents bugs: A user can only have ONE share per specific expense.
+@@unique([userId, expenseId])
 }

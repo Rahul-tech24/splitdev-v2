@@ -3,42 +3,94 @@
 import prisma from '../lib/prisma';
 import { verifySession } from '../lib/session';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
+// --- ZOD SCHEMA (Now handling exact mathematical shares!) ---
+const ExpenseSchema = z.object({
+  groupId: z.string().uuid("Invalid group ID format"),
+  description: z.string()
+    .min(2, "Description must be at least 2 characters")
+    .max(50, "Description is too long (max 50 chars)"),
+  amount: z.number()
+    .positive("Amount must be greater than $0")
+    .max(100000, "Amount exceeds maximum allowed ($100,000)"),
+  // NEW: An array of exact shares instead of just user IDs
+  shares: z.array(z.object({
+    userId: z.string(),
+    amountOwed: z.number().nonnegative()
+  })).min(1, "You must select at least one person to split with")
+});
 
 export async function createGroup(name: string) {
   try {
-    // 1. The Bouncer: Check the cookie to see who is making this request
     const session = await verifySession();
-    
-    if (!session || !session.userId) {
-      return { error: 'Unauthorized. Please log in.' };
-    }
+    if (!session || !session.userId) return { error: 'Unauthorized. Please log in.' };
+    if (!name || name.trim() === '') return { error: 'Group name is required.' };
 
-    if (!name || name.trim() === '') {
-      return { error: 'Group name is required.' };
-    }
-
-    // 2. The Database Mutation: Create the group AND link the user in one move
     const group = await prisma.group.create({
-      data: {
-        name: name,
-        // This is the "Invisible Wire" we talked about yesterday!
-        // We don't push to an array. We use `connect` to draw a line in the Join Table.
-        members: {
-           connect: { id: session.userId }
-        }
-      }
+      data: { name: name, members: { connect: { id: session.userId } } }
     });
 
-    // 3. Cache Invalidation: Tell Next.js to refresh the Dashboard instantly
     revalidatePath('/dashboard');
-
     return { success: true, groupId: group.id };
-
   } catch (error) {
     console.error('Create Group Error:', error);
     return { error: 'Failed to create group.' };
   }
 }
+
+// UPDATE: The signature now takes `shares` instead of `selectedMembers`
+export async function createExpense(groupId: string, description: string, amount: number, shares: { userId: string, amountOwed: number }[]) {
+  try {
+    const session = await verifySession();
+    if (!session) return { success: false, error: 'Unauthorized.' };
+
+    // GATE 2: ZOD VALIDATION
+    const validation = ExpenseSchema.safeParse({ groupId, description, amount, shares });
+    if (!validation.success) {
+      return { success: false, error: validation.error.errors[0].message };
+    }
+
+    const safeData = validation.data;
+
+    // MATH VALIDATION: Ensure the exact shares perfectly add up to the total receipt amount
+    const totalShares = safeData.shares.reduce((sum, share) => sum + share.amountOwed, 0);
+    
+    // We use Math.abs to avoid weird JavaScript floating-point decimal bugs (e.g. 0.1 + 0.2 = 0.300000004)
+    if (Math.abs(totalShares - safeData.amount) > 0.01) {
+      return { success: false, error: 'The individual shares do not add up to the total amount.' };
+    }
+
+    const group = await prisma.group.findFirst({
+      where: { id: safeData.groupId, members: { some: { id: session.userId } } },
+    });
+
+    if (!group) return { success: false, error: 'Group not found or unauthorized.' };
+
+    // DATABASE: Create the expense AND the specific EXACT shares in one atomic transaction
+    await prisma.expense.create({
+      data: {
+        description: safeData.description,
+        amount: safeData.amount,
+        group: { connect: { id: safeData.groupId } },
+        paidBy: { connect: { id: session.userId } },
+        shares: {
+          create: safeData.shares.map((share) => ({
+            amountOwed: share.amountOwed,
+            user: { connect: { id: share.userId } }
+          }))
+        }
+      },
+    });
+
+    revalidatePath(`/groups/${safeData.groupId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create expense:', error);
+    return { success: false, error: 'An unexpected error occurred.' };
+  }
+}
+
 
 export async function inviteMember(groupId: string, targetEmail: string) {
   try {
@@ -111,60 +163,3 @@ export async function inviteMember(groupId: string, targetEmail: string) {
   }
 }
 
-export async function createExpense(groupId: string, description: string, amount: number) {
-  try {
-    // GATE 1: Is the caller signed in?
-    const session = await verifySession();
-    if (!session) {
-      return { success: false, error: 'You must be logged in to add an expense.' };
-    }
-
-    // GATE 2: Is the data clean and legit? (Check in memory before hitting DB!)
-    const cleanDescription = description.trim();
-    if (!cleanDescription) {
-      return { success: false, error: 'Please enter a description for the expense.' };
-    }
-
-    if (!amount || isNaN(amount) || amount <= 0) {
-      return { success: false, error: 'Please enter a valid amount greater than $0.' };
-    }
-
-    // GATE 3: Does the group exist AND is the caller a member?
-    const group = await prisma.group.findFirst({
-      where: {
-        id: groupId,
-        members: {
-          some: {
-            id: session.userId,
-          },
-        },
-      },
-    });
-
-    if (!group) {
-      return { success: false, error: 'Group not found or you do not have permission to add expenses to it.' };
-    }
-
-    // ALL GATES CLEARED: Plug in the dual wires and create the receipt!
-    await prisma.expense.create({
-      data: {
-        description: cleanDescription,
-        amount: Number(amount.toFixed(2)), // Enforce 2 decimal places max
-        group: {
-          connect: { id: groupId }, // Wire 1: Connect to the Group
-        },
-        paidBy: {
-          connect: { id: session.userId }, // Wire 2: Connect to the User who paid
-        },
-      },
-    });
-
-    // Ripped up the old cache photograph so the new receipt instantly appears on screen
-    revalidatePath(`/groups/${groupId}`);
-
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to create expense:', error);
-    return { success: false, error: 'An unexpected error occurred while saving the expense.' };
-  }
-}
